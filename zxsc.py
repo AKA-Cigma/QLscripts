@@ -4,6 +4,8 @@
 项目名称: AKA-Cigma / QLscripts
 Author: AKA-Cigma
 功能：中兴商城自动签到
+一天5毛买东西可抵扣
+抓手机端签到请求链接里面的accessToken=后面的字符串（如dc487xxxx9d67）填到环境变量'zxscck'里，多账号&连接，网页版签到抓到的accessToken没有测试，有可能能用
 Date: 2023/10/16
 cron: 3 0 * * *
 new Env('中兴商城');
@@ -49,12 +51,14 @@ for i, account in enumerate(accounts_list, start=1):
     if response['errorcode'] == 0:
         currentCheckInPoint = response['data']['currentCheckInPoint']
         point = response['data']['point']
+        print(f"账号{i}签到成功，获得{currentCheckInPoint}积分，当前积分：{point}\n")
         result.append(f"账号{i}签到成功，获得{currentCheckInPoint}积分，当前积分：{point}\n")
     else:
         msg = response['msg']
+        print(f"账号{i}签到失败，{msg}\n")
         result.append(f"账号{i}签到失败，{msg}\n")
 
 try:
-    send("中兴商城签到",result)
+    send("中兴商城签到",f"{''.join(result)}")
 except Exception as e:
     print(f"消息推送失败：{e}！\n{result}\n")
