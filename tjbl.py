@@ -71,19 +71,19 @@ for i, account in enumerate(accounts_list, start=1):
 
     data = request_json(urls[0], headers=headers)
     if data and data['msg'] == "操作成功":
-        result.append(f"账号{i}签到成功，")
+        result.append(f"账号{i}签到成功！\n")
     else:
-        result.append(f"账号{i}签到失败：{data}，")
+        result.append(f"账号{i}签到失败：{data}\n")
 
     data = request_json(urls[1], headers=headers)
     if data and data['msg'] == "操作成功":
-        result.append(f"{data['data']}，")
+        result.append(f"本月签到{data['data']['numCount']}次，共获得积分：{data['data']['scoreCount']}，")
     else:
         result.append(f"查询签到详情失败：{data}，")
 
     data = request_json(urls[2], headers=headers)
     if data and data['msg'] == "操作成功":
-        result.append(f"当前积分：{data['data']['totalScore']}，昵称：{data['data']['nickName']}\n")
+        result.append(f"当前账户总积分：{data['data']['totalScore']}，昵称：{data['data']['nickName']}\n")
     else:
         result.append(f"查询当前积分失败：{data}\n")
 
