@@ -2,7 +2,7 @@
 # -- coding: utf-8 --
 '''
 项目名称: AKA-Cigma / QLscripts
-Author: 未知，仅修复import失败，如有侵权请联系我删除
+Author: 未知，仅修复import失败，默认申请全部可申请，如有侵权请联系我删除
 功能：i茅台自动预约
 青龙面板加入环境变量 export MTTokenD，多账号&连接
 MTTokenD是茅台预约参数，格式'省份,城市,经度,维度,设备id,token,MT-Token-Wap(抓包小茅运)'
@@ -10,7 +10,7 @@ MTTokenD是茅台预约参数，格式'省份,城市,经度,维度,设备id,toke
 MT-Token-Wap参数是小茅运的领奖励，不需要的话MTTokenD格式改成 省份,城市,经度,维度,设备id,token,''
 依赖pycryptodome
 Date: 2024/09/26
-cron: 0 0,30 9 * * *
+cron: 0 10,30 9 * * *
 new Env('i茅台');
 '''
 
@@ -29,10 +29,16 @@ from notify import send
 
 p_c_map = {}
 mt_r = 'clips_OlU6TmFRag5rCXwbNAQ/Tz1SKlN8THcecBp/'
-# 下面定义的是申请哪几个，可通过iMT_Products环境变量来设置，比如{"10941": "贵州茅台酒（甲辰龙年）", "2478": "贵州茅台酒（珍品）", "10942": "贵州茅台酒（甲辰龙年）x2"}，不知道的运行一次有打印
+# 下面定义的是申请哪几个，可通过iMT_Products环境变量来设置，比如{"10941": "贵州茅台酒（甲辰龙年）", "2478": "贵州茅台酒（珍品）", "10942": "贵州茅台酒（甲辰龙年）x2"}，不知道的运行一次有打印，不设置默认全申请
 products = os.getenv('iMT_Products')
+
 if not products:
-    res_map = {'10941': '贵州茅台酒 (甲辰龙年)', '10923': '53%vol 500ml茅台1935·中国国家地理文创酒', '2478': '贵州茅台酒（珍品）', '10942': '贵州茅台酒 (甲辰龙年)'}
+    try:
+        with open('productsCookie.json', 'r') as json_file:
+            res_map = json.load(json_file)
+    except:
+        print('无productsCookie.json历史记录文件')
+        res_map = {'10941': '贵州茅台酒 (甲辰龙年)', '10942': '贵州茅台酒 (甲辰龙年)'}
 else:
     res_map = json.loads(products)
 print('拟预约商品：')
@@ -131,6 +137,9 @@ def get_shop_items(sessionId, device_id, token, province, city):
         item_code_title_map[item.get("itemCode")] = item.get("title")
     print('可预约商品列表：')
     print(item_code_title_map)
+    with open('productsCookie.json', 'w') as json_file:
+        json.dump(item_code_title_map, json_file)
+        print('已更新productsCookie.json历史记录文件')
     return item_code_title_map
 
 def get_shop_item(sessionId, itemId, device_id, token, province, city):
