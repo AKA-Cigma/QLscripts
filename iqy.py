@@ -111,11 +111,11 @@ class IQiYi:
 
         try:
             if method == "GET":
-                response = self.session.get(url, headers=self.headers, params=body)
+                response = self.session.get(url, headers=self.headers, params=body, verify=False)
             elif method == "POST":
-                response = self.session.post(url, headers=self.headers, data=dumps(body))
+                response = self.session.post(url, headers=self.headers, data=dumps(body), verify=False)
             elif method == "OTHER":
-                response = self.session.get(url, headers=self.headers, params=dumps(body))
+                response = self.session.get(url, headers=self.headers, params=dumps(body), verify=False)
                 
             if method in ["GET", "POST"]:
                 data = response.json()
