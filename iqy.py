@@ -21,8 +21,8 @@ from string import digits, ascii_lowercase, ascii_uppercase
 from sys import exit, stdout
 from uuid import uuid4
 import requests
-import urllib3
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# import urllib3
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def load_send():
     cur_path = path.abspath(path.dirname(__file__))
@@ -113,11 +113,11 @@ class IQiYi:
 
         try:
             if method == "GET":
-                response = self.session.get(url, headers=self.headers, params=body, verify=False)
+                response = self.session.get(url, headers=self.headers, params=body)
             elif method == "POST":
-                response = self.session.post(url, headers=self.headers, data=dumps(body), verify=False)
+                response = self.session.post(url, headers=self.headers, data=dumps(body))
             elif method == "OTHER":
-                response = self.session.get(url, headers=self.headers, params=dumps(body), verify=False)
+                response = self.session.get(url, headers=self.headers, params=dumps(body))
                 
             if method in ["GET", "POST"]:
                 data = response.json()
