@@ -5,7 +5,7 @@
 Author: AKA-Cigma
 功能：熊猫代理自动签到
 注册地址: http://www.xiongmaodaili.com?invitationCode=FE66C96A-C72F-48AC-819B-079152005E4F
-账号#密码填到环境变量'tjblck'里，多账号&连接
+账号#密码填到环境变量'xmdlck'里，多账号&连接
 Date: 2024/09/25
 cron: 7 0 * * *
 new Env('熊猫代理');
