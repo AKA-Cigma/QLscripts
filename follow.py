@@ -9,6 +9,8 @@ Date: 2024/10/24
 cron: 8 8 * * *
 new Env('Follow');
 """
+from logging import exception
+
 import requests
 import time
 import os
@@ -65,57 +67,60 @@ for i, account in enumerate(accounts_list, start=1):
     headers['cookie'] = cleaned_cookie
     session = requests.Session()
     session.headers.update(headers)
-    data = session.get(urls[0])
-    if data.text:
-        xCsrfToken = data.json()['csrfToken']
-        csrfToken = data.cookies.get_dict().get('authjs.csrf-token')
-        callback = data.cookies.get_dict().get('authjs.callback-url')
-    else:
-        result.append(f"账号{i}未获取到xCsrfToken：{data}\n")
-        continue
-
-    headers['cookie'] = cleaned_cookie + "; authjs.callback-url=" + callback + "; authjs.csrf-token=" + csrfToken if callback and csrfToken else account
-    headers['x-csrf-token'] = xCsrfToken or ''
-    session.headers.update(headers)
-    transactionHash = None
-
-    data = session.get(urls[1])
-    if data.text and data.json().get('data'):
-        if not data.json()['data']:
-            result.append(f"账号{i}今日已签到！")
+    try:
+        data = session.get(urls[0])
+        if data.text:
+            xCsrfToken = data.json()['csrfToken']
+            csrfToken = data.cookies.get_dict().get('authjs.csrf-token')
+            callback = data.cookies.get_dict().get('authjs.callback-url')
         else:
-            data = session.post(urls[2])
-            if data.text and data.json()['code'] == 0:
-                result.append(f"账号{i}签到成功！")
-                transactionHash = data.json()['data']['transactionHash']
-                print("等待一分钟后刷新……")
-                time.sleep(60)
+            result.append(f"账号{i}未获取到xCsrfToken：{data}\n")
+            continue
+
+        headers['cookie'] = cleaned_cookie + "; authjs.callback-url=" + callback + "; authjs.csrf-token=" + csrfToken if callback and csrfToken else account
+        headers['x-csrf-token'] = xCsrfToken or ''
+        session.headers.update(headers)
+        transactionHash = None
+
+        data = session.get(urls[1])
+        if data.text and data.json().get('data'):
+            if not data.json()['data']:
+                result.append(f"账号{i}今日已签到！")
             else:
-                result.append(f"账号{i}签到失败：{data}，")
-    else:
-        result.append(f"账号{i}查询签到状态失败：{data}")
-
-    data = session.get(urls[3])
-    if data.text:
-        userId = data.json()['data'][0]['userId']
-        powerToken = int(data.json()['data'][0]['powerToken']) / (10**18)
-        result.append(f"总power：{powerToken}，")
-    else:
-        result.append(f"查询power总数失败：{data}\n")
-        continue
-
-    data = session.get(urls[4] + userId)
-    if data.text:
-        if transactionHash and data.json()['data'][0]['hash'] == transactionHash:
-            result.append(f"签到校验成功！\n")
-        elif transactionHash is None:
-            result.append(f"仅在每天第一次签到校验结果。\n")
+                data = session.post(urls[2])
+                if data.text and data.json()['code'] == 0:
+                    result.append(f"账号{i}签到成功！")
+                    transactionHash = data.json()['data']['transactionHash']
+                    print("等待一分钟后刷新……")
+                    time.sleep(60)
+                else:
+                    result.append(f"账号{i}签到失败：{data}，")
         else:
-            result.append(f"签到校验失败：{data.json()['data'][0]['hash']}\n")
-    else:
-        result.append(f"签到校验失败：{data}\n")
+            result.append(f"账号{i}查询签到状态失败：{data}")
 
-    session.close()
+        data = session.get(urls[3])
+        if data.text:
+            userId = data.json()['data'][0]['userId']
+            powerToken = int(data.json()['data'][0]['powerToken']) / (10 ** 18)
+            result.append(f"总power：{powerToken}，")
+        else:
+            result.append(f"查询power总数失败：{data}\n")
+            continue
+
+        data = session.get(urls[4] + userId)
+        if data.text:
+            if transactionHash and data.json()['data'][0]['hash'] == transactionHash:
+                result.append(f"签到校验成功！\n")
+            elif transactionHash is None:
+                result.append(f"仅在每天第一次签到校验结果。\n")
+            else:
+                result.append(f"签到校验失败：{data.json()['data'][0]['hash']}\n")
+        else:
+            result.append(f"签到校验失败：{data}\n")
+    except exception as e:
+        result.append(f"出现未知错误：{e}即将进行下一账号\n")
+    finally:
+        session.close()
 
 try:
     send("Follow签到",f"{''.join(result)}")
