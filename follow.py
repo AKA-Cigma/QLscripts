@@ -52,13 +52,16 @@ result = []
 
 for i, account in enumerate(accounts_list, start=1):
     print(f"=======开始执行账号{i}=======\n")
-    cleaned_cookie = account
-    if 'authjs.callback-url=' in cleaned_cookie:
-        cleaned_cookie = cleaned_cookie.split('authjs.callback-url=')[0] + cleaned_cookie.split(';', 1)[1]
-    if 'authjs.csrf-token=' in cleaned_cookie:
-        cleaned_cookie = cleaned_cookie.split('authjs.csrf-token=')[0] + cleaned_cookie.split(';', 1)[1]
-    cleaned_cookie = '; '.join([c.strip() for c in cleaned_cookie.split(';') if c.strip()])
 
+    texts = []
+    for s in account.split(";"):
+        text = s.strip()
+        if not text or text.startswith("authjs.callback-url=") or text.startswith("authjs.csrf-token="):
+            continue
+
+        texts.append(text)
+
+    cleaned_cookie = "; ".join(texts)
     headers['cookie'] = cleaned_cookie
     session = requests.Session()
     session.headers.update(headers)
@@ -71,8 +74,8 @@ for i, account in enumerate(accounts_list, start=1):
         result.append(f"账号{i}未获取到xCsrfToken：{data}\n")
         continue
 
-    headers['cookie'] = cleaned_cookie + "; authjs.callback-url=" + callback + "; authjs.csrf-token=" + csrfToken
-    headers['x-csrf-token'] = xCsrfToken
+    headers['cookie'] = cleaned_cookie + "; authjs.callback-url=" + callback + "; authjs.csrf-token=" + csrfToken if callback and csrfToken else account
+    headers['x-csrf-token'] = xCsrfToken or ''
     session.headers.update(headers)
     transactionHash = None
 
