@@ -81,7 +81,7 @@ for i, account in enumerate(accounts_list, start=1):
 
     data = session.get(urls[1])
     if data.text:
-        if not data.json()['data']:
+        if not data.json().get('data', None):
             result.append(f"账号{i}今日已签到！")
         else:
             data = session.post(urls[2])
