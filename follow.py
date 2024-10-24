@@ -80,8 +80,8 @@ for i, account in enumerate(accounts_list, start=1):
     transactionHash = None
 
     data = session.get(urls[1])
-    if data.text:
-        if not data.json().get('data', None):
+    if data.text and data.json().get('data'):
+        if not data.json()['data']:
             result.append(f"账号{i}今日已签到！")
         else:
             data = session.post(urls[2])
