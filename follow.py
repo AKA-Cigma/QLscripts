@@ -6,7 +6,7 @@ Author: AKA-Cigma
 功能：Follow自动签到
 抓Follow网页端的全部cookie填到环境变量'followck'里，多账号&连接
 Date: 2024/10/24
-cron: 8 0 * * *
+cron: 8 8 * * *
 new Env('Follow');
 """
 import requests
