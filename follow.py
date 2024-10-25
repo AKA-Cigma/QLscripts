@@ -117,7 +117,7 @@ for i, account in enumerate(accounts_list, start=1):
                 result.append(f"签到校验失败：{data.json()['data'][0]['hash']}\n")
         else:
             result.append(f"签到校验失败：{data}\n")
-    except exception as e:
+    except Exception as e:
         result.append(f"出现未知错误：{e}即将进行下一账号\n")
     finally:
         session.close()
