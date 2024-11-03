@@ -6,10 +6,10 @@ Author: AKA-Cigma
 功能：v2ex论坛自动签到
 抓电脑网页端v2ex论坛积分页面请求头的完整cookie填到环境变量'v2exck'里，多账号&连接
 Date: 2024/10/31
-cron: 9 0 * * *
+cron: 9 8 * * *
 new Env('v2ex');
 '''
-import requests, json, time, os, sys
+import requests, json, time, os, sys, re
 from lxml import html
 try:
     from notify import send
@@ -26,6 +26,7 @@ accounts_list = accounts.split('&')
 print(f"获取到 {len(accounts_list)} 个账号\n")
 
 urls = ['https://www.v2ex.com/mission/daily',
+    'https://www.v2ex.com',
     'https://www.v2ex.com/balance',
 ]
 
@@ -52,14 +53,27 @@ for i, account in enumerate(accounts_list, start=1):
     headers['Cookie'] = account
 
     data = requests.get(urls[0], headers=headers)
-    if data and '已成功领取每日登录奖励' in data.text:
-        result.append(f"账号{i}签到成功！")
-    elif data and '每日登录奖励已领取' in data.text:
+    if data and '每日登录奖励已领取' in data.text:
         result.append(f"账号{i}今日已签到！")
+    elif data and '领取 X 铜币' in data.text:
+        tree = html.fromstring(data.text)
+        link = tree.xpath('//input[@class="super normal button"]/@onclick')
+        match  = re.search(r"'/([^']+)'", link[0])
+        if match:
+            url = f"/{match.group(1)}"
+        else:
+            result.append(f"账号{i}未获取到签到链接：{link[0]}\n")
+            continue
+
+        data = requests.get(urls[1] + url, headers=headers)
+        if data and '已成功领取每日登录奖励' in data.text:
+            result.append(f"账号{i}签到成功！")
+        else:
+            result.append(f"账号{i}签到异常：{data}\n")
     else:
         result.append(f"账号{i}签到异常：{data}\n")
 
-    data = requests.get(urls[1], headers=headers)
+    data = requests.get(urls[2], headers=headers)
     if data and data.text:
         tree = html.fromstring(data.text)
         amount_value = tree.xpath('//table[@class="data"]/tr[2]/td[3]/span/strong/text()')
