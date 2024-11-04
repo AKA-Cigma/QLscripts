@@ -11,6 +11,7 @@ new Env('v2ex');
 '''
 import requests, json, time, os, sys, re
 from lxml import html
+from datetime import datetime
 try:
     from notify import send
 except:
@@ -66,18 +67,21 @@ for i, account in enumerate(accounts_list, start=1):
             continue
 
         data = requests.get(urls[1] + url, headers=headers)
-        if data and '已成功领取每日登录奖励' in data.text:
-            result.append(f"账号{i}签到成功！")
-        else:
-            result.append(f"账号{i}签到异常：{data}\n")
+        result.append(f"账号{i}已尝试签到！")
     else:
         result.append(f"账号{i}签到异常：{data}\n")
 
     data = requests.get(urls[2], headers=headers)
     if data and data.text:
         tree = html.fromstring(data.text)
-        amount_value = tree.xpath('//table[@class="data"]/tr[2]/td[3]/span/strong/text()')
-        result.append(f"获得铜币：{amount_value[0]}\n")
+        signin_time = tree.xpath('//table[@class="data"]/tr[2]/td[1]/small/text()')[0]
+        time = datetime.fromisoformat(signin_time.replace(" +08:00", "")).date()
+        today = datetime.now().date()
+        if time == today:
+            amount_value = tree.xpath('//table[@class="data"]/tr[2]/td[3]/span/strong/text()')
+            result.append(f"今日签到成功，获得铜币：{amount_value[0]}\n")
+        else:
+            result.append(f"签到失败：{time}\n")
 
         balance_area = tree.xpath('//div[@class="balance_area bigger"]/text()')
         balance_values = [value.strip() for value in balance_area if value.strip().isdigit()]
