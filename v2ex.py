@@ -83,11 +83,37 @@ for i, account in enumerate(accounts_list, start=1):
         else:
             result.append(f"签到失败：{time}\n")
 
-        balance_area = tree.xpath('//div[@class="balance_area bigger"]/text()')
-        balance_values = [value.strip() for value in balance_area if value.strip().isdigit()]
-        while len(balance_values) < 3:
-            balance_values.insert(0, '0')
-        result.append(f"金币数量：{balance_values[0]}，银币数量：{balance_values[1]}，铜币数量：{balance_values[2]}\n")
+        # 查找账户余额区域
+        balance_div = tree.xpath('//div[@class="balance_area bigger"]')
+        if balance_div:
+            balance_div = balance_div[0]  # 获取第一个匹配的余额区域
+
+            # 提取数字和币种图片信息
+            numbers = balance_div.xpath('text()')  # 提取文字部分（数字）
+            image_sources = balance_div.xpath('.//img/@src')  # 提取图片路径
+
+            # 初始化金银铜币
+            gold, silver, bronze = 0, 0, 0
+
+            # 遍历图片路径与数字对应
+            index = 0
+            for src in image_sources:
+                while index < len(numbers) and not numbers[index].strip():
+                    index += 1  # 跳过空白字符
+                if index >= len(numbers):
+                    break
+                num = int(numbers[index].strip())  # 提取数字
+                if "gold" in src:
+                    gold = num
+                elif "silver" in src:
+                    silver = num
+                elif "bronze" in src:
+                    bronze = num
+                index += 1
+
+            result.append(f"金币数量：{gold}，银币数量：{silver}，铜币数量：{bronze}\n")
+        else:
+            result.append(f"获取余额异常：{data}\n")
     else:
         result.append(f"获取余额异常：{data}\n")
 
