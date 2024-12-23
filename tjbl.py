@@ -47,9 +47,9 @@ result = []
 
 def request_json(url, headers):
     response = requests.get(url, headers=headers)
-    raw_response = response.content.decode('utf-8')
 
     try:
+        raw_response = response.content.decode('utf-8')
         data = json.loads(raw_response)
         return data
     except json.JSONDecodeError:
