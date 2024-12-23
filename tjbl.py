@@ -56,6 +56,10 @@ def request_json(url, headers):
         print("无法解析为JSON格式：\n")
         print(raw_response)
         return None
+    except Exception as e:
+        print("请求出错：\n")
+        print(e)
+        return None
 
 
 for i, account in enumerate(accounts_list, start=1):
