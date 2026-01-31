@@ -6,7 +6,8 @@
 Author: Gemini & AKA-Cigma
 功能：GLaDOS自动签到、积分查询、自动积分兑换
 抓电脑网页端GLaDOS签到页面请求头的完整cookie填到环境变量'GR_COOKIE'里，多账号&连接或者新建
-默认500积分换100天，要改的话环境变量GLADOS_EXCHANGE_PLAN设置plan100/plan200/plan500
+默认500积分换100天，要改的话环境变量GR_COOKIE在账号cookie后#连接：100-100积分换10天，200-200积分换30天，500-500积分换100天，off-关闭自动兑换
+示例：koa:sess=...#off&koa:sess=...#500&koa:sess=...
 Date: 2026/01/31
 cron: 40 0,12 * * *
 new Env('GLaDOS');
@@ -18,7 +19,7 @@ import os
 import logging
 import datetime
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 # 尝试加载 notify
 try:
@@ -30,7 +31,6 @@ except:
 
 # 环境变量名
 ENV_COOKIES_KEY = "GR_COOKIE"
-ENV_EXCHANGE_PLAN_KEY = "GLADOS_EXCHANGE_PLAN"
 
 # API URLs
 CHECKIN_URL = "https://glados.cloud/api/user/checkin"
@@ -46,7 +46,17 @@ HEADERS_TEMPLATE = {
     'content-type': 'application/json;charset=UTF-8'
 }
 
-# Exchange Plan Points
+# 兑换计划映射
+# Key: 用户在环境变量中配置的值 (#100, #off 等)
+# Value: API 需要的 planType (None 表示不兑换)
+PLAN_MAP = {
+    "100": "plan100",
+    "200": "plan200",
+    "500": "plan500",
+    "off": None
+}
+
+# 积分需求表
 EXCHANGE_POINTS = {"plan100": 100, "plan200": 200, "plan500": 500}
 
 # ================= 日志设置 =================
@@ -67,63 +77,87 @@ logger = logging.getLogger(__name__)
 
 # ================= 核心功能函数 =================
 
-def get_cookies() -> List[str]:
-    """获取并解析 GR_COOKIE"""
+def get_accounts() -> List[Dict[str, Any]]:
+    """
+    获取并解析 GR_COOKIE，支持多账号及独立配置
+    格式: Cookie字符串#配置码
+    配置码: 100/200/500/off, 默认500
+    """
     raw_cookies_env = os.environ.get(ENV_COOKIES_KEY)
     
     if not raw_cookies_env:
         logger.error(f"环境变量 '{ENV_COOKIES_KEY}' 未设置，请在环境变量中添加 Cookie。")
         return []
 
-    cookies_list = []
+    # 分割多个账号
+    raw_list = []
     if '&' in raw_cookies_env:
-        cookies_list = raw_cookies_env.split('&')
+        raw_list = raw_cookies_env.split('&')
     elif '\n' in raw_cookies_env:
-        cookies_list = raw_cookies_env.split('\n')
+        raw_list = raw_cookies_env.split('\n')
     else:
-        cookies_list = [raw_cookies_env]
+        raw_list = [raw_cookies_env]
 
-    # 过滤空值
-    cookies_list = [c.strip() for c in cookies_list if c.strip()]
-    
-    logger.info(f"已获取并解析 Env 环境 Cookie，共 {len(cookies_list)} 个账号。")
-    return cookies_list
+    accounts = []
+    for raw_item in raw_list:
+        if not raw_item.strip():
+            continue
+            
+        # 解析 Cookie 和 配置后缀
+        parts = raw_item.split('#')
+        cookie_str = parts[0].strip()
+        config_code = parts[1].strip() if len(parts) > 1 else "500" # 默认为 500
+        
+        # 映射配置码到实际计划
+        plan = PLAN_MAP.get(config_code, "plan500") # 如果填了未知的，默认 plan500
+        if config_code == "off":
+            plan = None
 
-def get_exchange_plan() -> str:
-    """获取兑换计划配置"""
-    exchange_plan_env = os.environ.get(ENV_EXCHANGE_PLAN_KEY)
-    if not exchange_plan_env:
-        logger.info(f"环境变量 '{ENV_EXCHANGE_PLAN_KEY}' 未设置，默认使用 'plan500' (满500积分自动兑换)。")
-        return "plan500"
-    
-    if exchange_plan_env in EXCHANGE_POINTS:
-        logger.info(f"使用指定的兑换计划: {exchange_plan_env}")
-        return exchange_plan_env
-    else:
-        logger.warning(f"兑换计划 '{exchange_plan_env}' 无效，回退到默认 'plan500'。")
-        return "plan500"
+        if cookie_str:
+            accounts.append({
+                'cookie': cookie_str,
+                'plan': plan,
+                'config_code': config_code
+            })
+
+    logger.info(f"已获取并解析 Env 环境 Cookie，共 {len(accounts)} 个账号。")
+    return accounts
 
 def make_request(url: str, method: str, headers: Dict[str, str], data: Optional[Dict] = None, cookies: str = "") -> Optional[requests.Response]:
+    """
+    发送网络请求，包含重试机制
+    """
     session_headers = headers.copy()
     session_headers['cookie'] = cookies
+    
+    max_retries = 3
+    delay = 2
 
-    try:
-        if method.upper() == 'POST':
-            response = requests.post(url, headers=session_headers, data=json.dumps(data))
-        elif method.upper() == 'GET':
-            response = requests.get(url, headers=session_headers)
-        else:
-            return None
+    for attempt in range(1, max_retries + 1):
+        try:
+            if method.upper() == 'POST':
+                response = requests.post(url, headers=session_headers, data=json.dumps(data), timeout=10)
+            elif method.upper() == 'GET':
+                response = requests.get(url, headers=session_headers, timeout=10)
+            else:
+                return None
 
-        if not response.ok:
-            logger.warning(f"请求 {url} 失败，状态码 {response.status_code}。")
-            return None
-        return response
-    except requests.exceptions.RequestException as e:
-        logger.error(f"网络请求错误: {e}")
-        return None
+            if response.ok:
+                return response
+            else:
+                logger.warning(f"请求 {url} 失败 (第 {attempt}/{max_retries} 次)，状态码 {response.status_code}。")
+        
+        except requests.exceptions.RequestException as e:
+            logger.error(f"网络请求异常 (第 {attempt}/{max_retries} 次): {e}")
 
-def checkin_and_process(cookie: str, exchange_plan: str) -> Tuple[str, str, str, str, str]:
+        # 如果不是最后一次尝试，等待后重试
+        if attempt < max_retries:
+            time.sleep(delay)
+    
+    logger.error(f"请求 {url} 超过最大重试次数，已放弃。")
+    return None
+
+def checkin_and_process(cookie: str, exchange_plan: Optional[str]) -> Tuple[str, str, str, str, str, str]:
     """执行单个账号的签到、查询和兑换流程"""
     
     status_msg = "签到失败"
@@ -131,11 +165,12 @@ def checkin_and_process(cookie: str, exchange_plan: str) -> Tuple[str, str, str,
     remaining_days = "未知"
     remaining_points = "未知"
     exchange_msg = "无兑换"
+    email = "未知账号"
     
     # 1. 签到
     checkin_response = make_request(CHECKIN_URL, 'POST', HEADERS_TEMPLATE, {"token": "glados.cloud"}, cookies=cookie)
     if not checkin_response:
-        return status_msg, points_gained, remaining_days, remaining_points, "接口请求失败"
+        return status_msg, points_gained, remaining_days, remaining_points, "接口请求失败", email
 
     try:
         checkin_data = checkin_response.json()
@@ -152,16 +187,19 @@ def checkin_and_process(cookie: str, exchange_plan: str) -> Tuple[str, str, str,
     except json.JSONDecodeError:
         status_msg = "响应解析失败"
 
-    # 2. 获取状态 (剩余天数)
+    # 2. 获取状态 (剩余天数 和 Email)
     status_response = make_request(STATUS_URL, 'GET', HEADERS_TEMPLATE, cookies=cookie)
     if status_response:
         try:
             status_data = status_response.json()
+            email = status_data.get('data', {}).get('email', '未知账号')
+            
             left_days = status_data.get('data', {}).get('leftDays')
             if left_days is not None:
                 remaining_days = f"{int(float(left_days))}天"
         except Exception:
             remaining_days = "天数获取失败"
+            logger.error("解析状态数据失败")
 
     # 3. 获取积分
     points_response = make_request(POINTS_URL, 'GET', HEADERS_TEMPLATE, cookies=cookie)
@@ -176,36 +214,39 @@ def checkin_and_process(cookie: str, exchange_plan: str) -> Tuple[str, str, str,
         except Exception:
             remaining_points = "积分获取失败"
 
-    # 4. 自动兑换
-    required_points = EXCHANGE_POINTS.get(exchange_plan, 500)
-    if current_points_numeric >= required_points:
-        logger.info(f"积分充足 ({current_points_numeric}/{required_points})，尝试执行兑换: {exchange_plan}")
-        exchange_response = make_request(EXCHANGE_URL, 'POST', HEADERS_TEMPLATE, {"planType": exchange_plan}, cookies=cookie)
-        if exchange_response:
-            try:
-                ex_data = exchange_response.json()
-                if ex_data.get('code') == 0:
-                    exchange_msg = f"兑换成功({exchange_plan})"
-                else:
-                    exchange_msg = f"兑换失败:{ex_data.get('message')}"
-            except:
-                exchange_msg = "兑换响应异常"
+    # 4. 自动兑换 (仅当 exchange_plan 不为 None 时执行)
+    if exchange_plan:
+        required_points = EXCHANGE_POINTS.get(exchange_plan, 500)
+        if current_points_numeric >= required_points:
+            logger.info(f"积分充足 ({current_points_numeric}/{required_points})，尝试执行兑换: {exchange_plan}")
+            exchange_response = make_request(EXCHANGE_URL, 'POST', HEADERS_TEMPLATE, {"planType": exchange_plan}, cookies=cookie)
+            if exchange_response:
+                try:
+                    ex_data = exchange_response.json()
+                    if ex_data.get('code') == 0:
+                        exchange_msg = f"兑换成功({exchange_plan})"
+                    else:
+                        exchange_msg = f"兑换失败:{ex_data.get('message')}"
+                except:
+                    exchange_msg = "兑换响应异常"
+        else:
+            exchange_msg = "积分不足"
     else:
-        exchange_msg = "积分不足"
+        exchange_msg = "已设为不兑换"
 
-    return status_msg, points_gained, remaining_days, remaining_points, exchange_msg
+    return status_msg, points_gained, remaining_days, remaining_points, exchange_msg, email
 
 def format_notification(results: List[Dict[str, str]]) -> Tuple[str, str]:
     """格式化通知内容"""
     success_count = sum(1 for r in results if "成功" in r['status'] or "重复" in r['status'])
-    fail_count = len(results) - success_count
     
     title = f"GLaDOS签到: 成功{success_count}/共{len(results)}"
     
     content_lines = []
     for i, res in enumerate(results, 1):
         line = (
-            f"账号{i}: {res['status']}\n"
+            f"账号: {res['email']}\n"
+            f"状态: {res['status']}\n"
             f"天数: {res['days']} | 积分: {res['points_total']}\n"
             f"兑换: {res['exchange']}\n"
             f"----------------"
@@ -219,33 +260,39 @@ def format_notification(results: List[Dict[str, str]]) -> Tuple[str, str]:
 def main():
     logger.info("脚本开始运行...")
     
-    cookies_list = get_cookies()
-    if not cookies_list:
+    accounts = get_accounts()
+    if not accounts:
         return
 
-    exchange_plan = get_exchange_plan()
     results = []
     
-    for idx, cookie in enumerate(cookies_list, 1):
+    for idx, account in enumerate(accounts, 1):
         logger.info(f"=== 正在处理第 {idx} 个账户 ===")
+        cookie = account['cookie']
+        exchange_plan = account['plan']
+        config_code = account['config_code']
+
         # 使用掩码打印 Cookie 日志，避免泄露
         masked_cookie = cookie[:10] + "******" + cookie[-10:] if len(cookie) > 20 else "******"
         logger.info(f"Cookie: {masked_cookie}")
+        logger.info(f"兑换配置: {config_code} -> {exchange_plan if exchange_plan else '不兑换'}")
         
-        status, points, days, points_total, exchange = checkin_and_process(cookie, exchange_plan)
+        status, points, days, points_total, exchange, email = checkin_and_process(cookie, exchange_plan)
         
-        logger.info(f"处理结果: {status}, 剩余: {days}, 积分: {points_total}")
+        display_name = email if email != "未知账号" else f"Account_{idx}"
+        logger.info(f"账号: {display_name} | 结果: {status}, 剩余: {days}")
         
         results.append({
             'status': status,
             'points': points,
             'days': days,
             'points_total': points_total,
-            'exchange': exchange
+            'exchange': exchange,
+            'email': email
         })
         
         # 避免请求过于频繁
-        if idx < len(cookies_list):
+        if idx < len(accounts):
             time.sleep(2)
 
     # 生成通知内容
