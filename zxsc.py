@@ -80,11 +80,11 @@ def main():
             user_data = user_resp.get('data', {})
             user_name = user_data.get('username', '未知用户')
             point = user_data.get('point', 0)
-            is_checkin = str(user_data.get('isCheckin', '0')) # "1" 表示已签到 [cite: 2]
+            checkin_status = bool(user_data.get('checkin_status', False)) # True 表示已签到 [cite: 2]
 
             print(f"用户: {user_name} | 当前积分: {point}")
 
-            if is_checkin == "1":
+            if checkin_status:
                 msg = f"账号{i} ({user_name}) 今日已签到，无需重复。"
                 print(f"✅ {msg}")
                 result.append(msg)
